@@ -1,24 +1,44 @@
-import os
-import subprocess
-from typing import List, Dict, Any, TypedDict, Literal, Optional
+from typing import List, TypedDict, Literal, Optional
+
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage, ToolMessage
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 import logging
+
+from .tools import (
+    CodeNode,
+    get_workspace_root,
+    make_agent_tools,
+    scaffold_workspace,
+)
 
 logger = logging.getLogger(__name__)
 
-### TODO: Add which tool to call and when in each agent prompt
-
 MODEL_NAME = "gpt-5.4-nano"
-MAX_TOOL_CALL_NUM = 5
+MAX_TOOL_CALL_NUM = 15
 MAX_SENDBACK = 3
+
+DOC_RULES = """
+Code documentation rules (mandatory):
+- Every code file MUST start with a header: Module (path), Purpose, Owner, Depends on.
+- Every function/class method MUST have a docstring (Python) or JSDoc (JS/TS) that describes the behavior, Args/params, and Returns.
+- Keep files modular. Do not put unrelated features in one file.
+- Call lookup_code_index before reading or editing so you touch the right files.
+- If you add a new module, call update_codemap_entry for that path.
+"""
+
 
 ### Define Structured Outputs ###
 class LeadPlan(BaseModel):
-    frontend_req:str
-    backend_req:str
-    qa_req:str
+    app_name: str = Field(description="Short filesystem-friendly application name")
+    summary: str = Field(description="One-paragraph architecture summary")
+    frontend_req: str = Field(description="Numbered frontend requirements")
+    backend_req: str = Field(description="Numbered backend requirements")
+    qa_req: str = Field(description="Numbered QA requirements")
+    contracts: str = Field(description="Shared API routes, payloads, and auth rules both sides must honor")
+    frontend_tree: List[CodeNode] = Field(description="Modular frontend files with path, purpose, exports, depends_on")
+    backend_tree: List[CodeNode] = Field(description="Modular backend files with path, purpose, exports, depends_on")
+
 
 class QAVerdict(BaseModel):
     passed: bool
@@ -28,55 +48,89 @@ class QAVerdict(BaseModel):
     backend_feedback: Optional[str] = None
     summary: str
 
+
 ### Define Shared Agent State ###
 class AgentState(TypedDict):
-    user_prompt:str
-    lead_plan:dict
-    frontend_plan:str
-    backend_plan:str
-    qa_plan:str
-    qa_verdict:dict
-    qa_feedback:str
-    error_log:str
-    test_results:str
-    sendback_count:int
+    user_prompt: str
+    lead_plan: dict
+    frontend_plan: str
+    backend_plan: str
+    qa_plan: str
+    qa_verdict: dict
+    qa_feedback: str
+    error_log: str
+    test_results: str
+    sendback_count: int
+    workspace_root: str
+    codemap: str
 
-### Function to handle tool calls###
-def handle_tool_calls(tool_calls):
+
+def handle_tool_calls(tool_calls, tool_dict) -> list:
     tool_msgs = []
     for tool_call in tool_calls:
-        tool_name = tool_call["name"]
-        tool_args = tool_call["args"]
-        tool_id = tool_call["id"]
-        tool_output = tool_dict[tool_name].invoke(tool_args)
+        if isinstance(tool_call, dict):
+            tool_name, tool_args, tool_id = tool_call["name"], tool_call["args"], tool_call["id"]
+        else:
+            tool_name, tool_args, tool_id = tool_call.name, tool_call.args, tool_call.id
+        tool = tool_dict.get(tool_name)
+        if tool is None:
+            tool_output = f"ERROR: unknown tool '{tool_name}'."
+        else:
+            try:
+                tool_output = tool.invoke(tool_args)
+            except Exception as exc:  # noqa: BLE001 — surface tool failures to the agent
+                tool_output = f"ERROR: {exc}"
+        if not isinstance(tool_output, str):
+            tool_output = str(tool_output)
         tool_msg = f"Tool executed. id: {tool_id}, name:{tool_name}, output:{tool_output}"
         print(tool_msg)
         logger.info(tool_msg)
         tool_msgs.append(ToolMessage(content=tool_output, tool_call_id=tool_id))
     return tool_msgs
 
-        
-### Initialize LLM with tools ###
-tools = [ # temp tools
-    Tool(
-        name="lead_plan",
-        description="Plan the lead generation strategy",
-        func=lead_plan
-    ),
-    Tool(
-        name="frontend_plan",
-        description="Plan the frontend development",
-        func=frontend_plan
-    ),
-]
+
+def _content_to_str(content) -> str:
+    if content is None:
+        return ""
+    if isinstance(content, str):
+        return content
+    return str(content)
+
+
+def _run_tool_loop(prompt: str, llm_tools, tool_dict) -> str:
+    messages = [HumanMessage(content=prompt)]
+    response = llm_tools.invoke(messages)
+    max_call = MAX_TOOL_CALL_NUM
+
+    while getattr(response, "tool_calls", None) and max_call > 0:
+        tool_msgs = handle_tool_calls(response.tool_calls, tool_dict)
+        messages.extend([response, *tool_msgs])
+        response = llm_tools.invoke(messages)
+        max_call -= 1
+
+    if getattr(response, "tool_calls", None):
+        messages.append(
+            HumanMessage(
+                "Stop calling tools. Summarize what you completed, "
+                "which CODEMAP paths you changed, and what is still unfinished."
+            )
+        )
+        response = llm_base.invoke(messages)
+
+    return _content_to_str(response.content)
+
 
 # Not To Do Pointers:
 # 1. Do not reuse llm_with_tools for lead “and just parse the text.” You lose the schema guarantee.
 # 2. Do not bind_tools([]) on the already-bound runnable to “turn tools off.” Use the base llm.
-# 3. Do not give lead the same file/shell tools. Lead only splits requirements; tools belong to implementers.
+# 3. Do not give lead the same file/shell tools. Lead only splits requirements and owns CODEMAP; tools belong to implementers.
 llm_base = ChatOpenAI(model=MODEL_NAME, temperature=0)
-llm_with_tools = ChatOpenAI(model=MODEL_NAME, temperature=0).bind_tools(tools)
-
+frontend_tools, frontend_tool_dict = make_agent_tools("frontend")
+backend_tools, backend_tool_dict = make_agent_tools("backend")
+qa_tools, qa_tool_dict = make_agent_tools("qa")
+frontend_llm = ChatOpenAI(model=MODEL_NAME, temperature=0).bind_tools(frontend_tools)
+backend_llm = ChatOpenAI(model=MODEL_NAME, temperature=0).bind_tools(backend_tools)
+qa_llm = ChatOpenAI(model=MODEL_NAME, temperature=0).bind_tools(qa_tools)
 
 
 ### Define Agent Nodes as functions ###
@@ -88,124 +142,148 @@ def lead_engineer(state: AgentState) -> AgentState:
     msg = "\n-- [LEAD ENGINEER AGENT] Analyzing user prompt and creating a master plan. --"
     print(msg)
     logger.info(msg)
-    prompt = f"""You are the lead engineer and review the user prompt: {state['user_prompt']}.
-    Create a comprehensive plan for the application architecture and requirements for frontend, backend and QA agents in a numbered list format:
-    - Frontend Engineer Agent: Works on the frontend development for the UI and UX.
-    - Backend Engineer Agent: Works on the backend development including API endpoints, security, database schema and integration with frontend.
-    - QA Engineer Agent: Works on the QA testing and provides feedback on the quality of the code.
+    prompt = f"""You are the lead engineer. Review the user prompt: {state['user_prompt']}
 
-    Ensure the plan is comprehensive and detailed enough for each agent to work on their respective tasks in numbered list format.
-    """
+Plan a two-folder application:
+- frontend/: UI/UX only. The frontend agent may change only this folder.
+- backend/: API, data, auth, and server logic only. The backend agent may change only this folder.
+
+Also define shared contracts (routes, request/response bodies, auth) that both agents must follow.
+
+Create a hierarchical, modular file tree (not one giant file per side). Each CodeNode must include:
+- path (always under frontend/ or backend/)
+- purpose (one line)
+- exports (public symbols)
+- depends_on (other files or API routes)
+
+Requirements for frontend, backend, and QA must be numbered lists detailed enough to implement.
+
+Do not write application logic. Your job is architecture, contracts, and the file index.
+"""
     response = llm_base.with_structured_output(LeadPlan).invoke([HumanMessage(content=prompt)])
-    state['lead_plan'] = {"frontend_req": response.frontend_req, "backend_req": response.backend_req, "qa_req": response.qa_req}
+    frontend_tree = [
+        CodeNode.model_validate(node) if not isinstance(node, CodeNode) else node
+        for node in response.frontend_tree
+    ]
+    backend_tree = [
+        CodeNode.model_validate(node) if not isinstance(node, CodeNode) else node
+        for node in response.backend_tree
+    ]
+    workspace = scaffold_workspace(
+        app_name=response.app_name,
+        summary=response.summary,
+        contracts=response.contracts,
+        frontend_tree=frontend_tree,
+        backend_tree=backend_tree,
+    )
+    lead_plan = response.model_dump()
+    state["lead_plan"] = lead_plan
+    state["workspace_root"] = str(workspace)
+    state["codemap"] = (workspace / "CODEMAP.md").read_text(encoding="utf-8")
     state.setdefault("sendback_count", 0)
+    scaffold_msg = f"-- [LEAD ENGINEER AGENT] Scaffolded workspace at {workspace} --"
+    print(scaffold_msg)
+    logger.info(scaffold_msg)
     return state
+
 
 def frontend_engineer(state: AgentState) -> AgentState:
     """
     Frontend Engineer Agent: Works on the frontend development for the UI and UX.
     """
+    workspace = state.get("workspace_root") or str(get_workspace_root())
     is_sendback = state.get("sendback_count", 0) > 0
     if is_sendback:
         msg = "\n-- [FRONTEND ENGINEER AGENT] Applying QA send-back fixes. --"
         verdict = state.get("qa_verdict") or {}
         prompt = f"""You are the frontend engineer fixing failed QA tests. Do not rebuild the app from scratch.
+    Workspace: {workspace}
+    You may WRITE only under frontend/. Other folders are read-only.
     Lead frontend requirements: {state['lead_plan']['frontend_req']}
+    Contracts: {state['lead_plan'].get('contracts')}
+    CODEMAP:
+    {state.get('codemap')}
     QA feedback: {verdict.get('frontend_feedback') or state.get('qa_feedback')}
     Failed tests: {verdict.get('failed_tests') or state.get('test_results')}
     Current frontend plan: {state.get('frontend_plan')}
-    Fix only the reported frontend failures, then summarize files changed.
+    {DOC_RULES}
+    Use lookup_code_index to find the failing modules, fix only those frontend files, keep headers/docstrings, update CODEMAP if you add files, then summarize CODEMAP paths changed.
     """
     else:
         msg = "\n-- [FRONTEND ENGINEER AGENT] Creating a frontend plan from lead requirements and write code. --"
-        prompt = f"""You are the frontend engineer and review the frontend requirements from lead plan: {state['lead_plan']['frontend_req']}.
-    Create a comprehensive plan for the frontend development for the UI and UX in a numbered list format:
-    - UI/UX Design: Create a design for the UI and UX.
-    - Frontend Development: Write the code for the frontend.
-    - Unit Tests: Write the unit tests for the frontend.
-    - Performance Tests: Write the performance tests for the frontend.
-    - Security Tests: Write the security tests for the frontend.
-    - Execute all frontend test cases.
+        prompt = f"""You are the frontend engineer.
+    Workspace: {workspace}
+    You may WRITE only under frontend/. Read CODEMAP, contracts/, and backend/ as needed. Never modify backend/.
+
+    Frontend requirements from lead: {state['lead_plan']['frontend_req']}
+    Shared contracts: {state['lead_plan'].get('contracts')}
+    CODEMAP (authoritative file index):
+    {state.get('codemap')}
+
+    Workflow:
+    1. Call lookup_code_index for each feature before editing.
+    2. Implement the stubbed frontend files (and add modules only when necessary, then update_codemap_entry).
+    3. Follow contracts; do not invent conflicting APIs.
+    4. Write unit/UI tests under frontend/ if appropriate; run them with run_command.
+    {DOC_RULES}
+
+    Create a numbered plan, then implement it. Summarize CODEMAP paths you changed.
     """
     print(msg)
     logger.info(msg)
-    messages = [HumanMessage(content=prompt)]
-    response = llm_with_tools.invoke(messages)
-    max_call = MAX_TOOL_CALL_NUM
-
-
-    while response.tool_calls and max_call > 0:
-        tool_msgs = handle_tool_calls(response.tool_calls)
-        messages.extend([response, *tool_msgs])
-        response = llm_with_tools.invoke(messages)
-        max_call -= 1
-    
-    # if tool call still exists after max attempt, then summarize
-    if response.tool_calls:
-        messages.append(HumanMessage(
-            "Stop calling tools. Summarize what you completed, "
-            "what files you changed, and what is still unfinished."
-        ))
-        response = llm_base.invoke(messages)   # no tools
-
-
-    state['frontend_plan'] = response.content
+    state["frontend_plan"] = _run_tool_loop(prompt, frontend_llm, frontend_tool_dict)
     return state
+
 
 def backend_engineer(state: AgentState) -> AgentState:
     """
     Backend Engineer Agent: Works on the backend development including API endpoints, security, database schema and integration with frontend.
     """
+    workspace = state.get("workspace_root") or str(get_workspace_root())
     is_sendback = state.get("sendback_count", 0) > 0
     if is_sendback:
         msg = "\n-- [BACKEND ENGINEER AGENT] Applying QA send-back fixes. --"
         verdict = state.get("qa_verdict") or {}
         prompt = f"""You are the backend engineer fixing failed QA tests. Do not rebuild the app from scratch.
+    Workspace: {workspace}
+    You may WRITE only under backend/ and contracts/. Never modify frontend/.
     Lead backend requirements: {state['lead_plan']['backend_req']}
     Frontend plan: {state.get('frontend_plan')}
+    Contracts: {state['lead_plan'].get('contracts')}
+    CODEMAP:
+    {state.get('codemap')}
     QA feedback: {verdict.get('backend_feedback') or state.get('qa_feedback')}
     Failed tests: {verdict.get('failed_tests') or state.get('test_results')}
     Current backend plan: {state.get('backend_plan')}
-    Fix only the reported backend failures, then summarize files changed.
+    {DOC_RULES}
+    Use lookup_code_index to find the failing modules, fix only those backend files, keep headers/docstrings, update CODEMAP if you add files, then summarize CODEMAP paths changed.
     """
     else:
         msg = "\n-- [BACKEND ENGINEER AGENT] Creating a backend plan from lead requirements and integration plan from frontend plan and write code. --"
-        prompt = f"""You are the backend engineer and review the backend requirements from lead plan and frontend plan for integration.
-    backend requirements: {state['lead_plan']['backend_req']}
-    frontend plan: {state['frontend_plan']}
-    Create a comprehensive plan for the backend and UI integration development in a numbered list format:
-    - Backend Design: Create a backend architecture design.
-    - Backend Development: Write the code for the backend architecture including for algorithms, database schema(optional), API endpoints and authentication.
-    - Integration Development: Write the code to integrate with UI.
-    - Unit Tests: Write the unit tests for the backend.
-    - Performance Tests: Write the performance tests for the backend.
-    - Security Tests: Write the security tests for the backend.
-    - Execute all backend test cases.
+        prompt = f"""You are the backend engineer.
+    Workspace: {workspace}
+    You may WRITE only under backend/ and contracts/. Read CODEMAP and frontend/ as needed. Never modify frontend/.
+
+    Backend requirements from lead: {state['lead_plan']['backend_req']}
+    Frontend plan: {state['frontend_plan']}
+    Shared contracts: {state['lead_plan'].get('contracts')}
+    CODEMAP (authoritative file index):
+    {state.get('codemap')}
+
+    Workflow:
+    1. Call lookup_code_index for each feature before editing.
+    2. Implement stubbed backend files (algorithms, schema, API, auth) to match contracts and frontend integration needs.
+    3. If you change an API, update contracts/api.md and CODEMAP.
+    4. Write and run backend tests with run_command.
+    {DOC_RULES}
+
+    Create a numbered plan, then implement it. Summarize CODEMAP paths you changed.
     """
     print(msg)
     logger.info(msg)
-    messages = [HumanMessage(content=prompt)]
-    response = llm_with_tools.invoke(messages)
-    max_call = MAX_TOOL_CALL_NUM
-
-
-    while response.tool_calls and max_call > 0:
-        tool_msgs = handle_tool_calls(response.tool_calls)
-        messages.extend([response, *tool_msgs])
-        response = llm_with_tools.invoke(messages)
-        max_call -= 1
-    
-    # if tool call still exists after max attempt, then summarize
-    if response.tool_calls:
-        messages.append(HumanMessage(
-            "Stop calling tools. Summarize what you completed, "
-            "what files you changed, and what is still unfinished."
-        ))
-        response = llm_base.invoke(messages)   # no tools
-
-
-    state["backend_plan"] = response.content 
+    state["backend_plan"] = _run_tool_loop(prompt, backend_llm, backend_tool_dict)
     return state
+
 
 def qa_engineer(state: AgentState) -> AgentState:
     """
@@ -214,37 +292,29 @@ def qa_engineer(state: AgentState) -> AgentState:
     msg = "\n-- [QA AGENT] Creating a QA plan from lead requirements and test plan from frontend and backend plan and write code. --"
     print(msg)
     logger.info(msg)
+    workspace = state.get("workspace_root") or str(get_workspace_root())
 
-    prompt = f"""You are the QA engineer  who reviews the requierments from {state["lead_plan"]["qa_req"]}.
-    Analyze frontend plan: {state["frontend_plan"]} and backend plan: {state["backend_plan"]} to write workflow unit tests."
-    Create a comprehensive plan for the workflow tests in a numbered list format:
-    - Unit Tests: Write the unit tests for the workflow.
-    - Performance Tests: Write the performance tests for end to end.
-    - Security Tests: Write the security tests for end to end.
-    - Execute all test cases from QA.
-    - Write how to initate the app in a single line.
+    prompt = f"""You are the QA engineer.
+    Workspace: {workspace}
+    You may WRITE only under qa/. Frontend and backend are read-only.
+    Use lookup_code_index and read_file to inspect the implementation.
+
+    QA requirements: {state["lead_plan"]["qa_req"]}
+    Frontend plan: {state["frontend_plan"]}
+    Backend plan: {state["backend_plan"]}
+    CODEMAP:
+    {state.get("codemap")}
+
+    Create a numbered plan then:
+    - Write workflow, performance, and security tests under qa/.
+    - Fail the build if application code files lack a Module/Purpose header or public functions lack Args/Returns (or JSDoc @param/@returns).
+    - Execute tests with run_command.
+    - Write how to start the app in a single line.
+    Do not rewrite product code; report owners via the verdict.
+    {DOC_RULES}
     """
 
-    messages = [HumanMessage(content=prompt)]
-    response = llm_with_tools.invoke(messages)
-    max_call = MAX_TOOL_CALL_NUM
-
-
-    while response.tool_calls and max_call > 0:
-        tool_msgs = handle_tool_calls(response.tool_calls)
-        messages.extend([response, *tool_msgs])
-        response = llm_with_tools.invoke(messages)
-        max_call -= 1
-    
-    # if tool call still exists after max attempt, then summarize
-    if response.tool_calls:
-        messages.append(HumanMessage(
-            "Stop calling tools. Summarize what you completed, "
-            "what files you changed, and what is still unfinished."
-        ))
-        response = llm_base.invoke(messages)   # no tools
-
-    work_summary = response.content or ""
+    work_summary = _run_tool_loop(prompt, qa_llm, qa_tool_dict)
     sendbacks_used = state.get("sendback_count", 0)
     remaining = max(MAX_SENDBACK - sendbacks_used, 0)
     verdict_prompt = f"""You already ran QA work. Produce a routing verdict from the results.
@@ -255,9 +325,10 @@ def qa_engineer(state: AgentState) -> AgentState:
     Rules:
     - passed=true only if executed tests succeeded. Then next_agent must be "end".
     - If tests failed, pick exactly one next_agent: "frontend" or "backend" (the primary owner this round). If both failed, pick the more blocking owner.
+    - Missing file headers or function Args/Returns docstrings are failures for the folder that owns the file.
     - If remaining send-backs are 0, next_agent must be "end" even if tests failed.
     - If you cannot determine a fix owner, next_agent="end".
-    - frontend_feedback / backend_feedback: concrete fix instructions for that engineer.
+    - frontend_feedback / backend_feedback: concrete fix instructions for that engineer, including CODEMAP paths.
     """
     verdict = llm_base.with_structured_output(QAVerdict).invoke([HumanMessage(content=verdict_prompt)])
 
