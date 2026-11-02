@@ -1,5 +1,6 @@
 from .agents import lead_engineer, frontend_engineer, backend_engineer, qa_engineer, AgentState
 from langgraph.graph import START, END, StateGraph
+from langgraph.checkpoint.memory import MemorySaver
 
 
 def route_after_frontend(state: AgentState) -> str:
@@ -15,6 +16,8 @@ def route_after_qa(state: AgentState) -> str:
         return next_agent
     return "end"
 
+# Initialize in-memory checkpointer
+checkpointer = MemorySaver()
 
 workflow = StateGraph(AgentState)
 
@@ -37,4 +40,4 @@ workflow.add_conditional_edges(
     {"frontend": "frontend", "backend": "backend", "end": END},
 )
 
-graph = workflow.compile()
+graph = workflow.compile(checkpointer=checkpointer)
