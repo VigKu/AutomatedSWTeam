@@ -1,4 +1,6 @@
-from .graph import graph
+from langgraph.checkpoint.sqlite import SqliteSaver
+from .graph import workflow
+from .observability import save_observability_report
 
 # Run the Graph with a configurable Thread Config
 # When invoking or streaming the graph, provide a thread_id inside the config object. LangGraph uses the thread_id to index state checkpoints:
@@ -10,9 +12,52 @@ initial_state = {
     "sendback_count": 0,
 }
 
-# Run the graph
-final_state = graph.invoke(initial_state, config=config)
+# # Run the graph
+# final_state = graph.invoke(initial_state, config=config)
 
+#1. Open SQLite checkpointer context
+with SqliteSaver.from_conn_string("sqlite:///checkpoints.sqlite") as checkpointer:
+    # Compile graph with active SQLite checkpointer
+    graph = workflow.compile(checkpointer=checkpointer)
+
+    # Run the graph
+    final_state = graph.invoke(initial_state, config=config)
+
+    # Inspect state or resume from a checkpoint
+    current_snapshot = graph.get_state(config)
+    print("Current node next up:", current_snapshot.next)
+
+# Save observability metrics locally
+report_path = save_observability_report(report_dir="report")
+print(f"Observability metrics report generated at {report_path.resolve()}")
+    
+# 2. Format state values into readable plain text
+text_lines = [
+    f"=== LANGGRAPH FINAL STATE REPORT ===",
+    f"Thread ID: {config['configurable']['thread_id']}",
+    f"Next Node: {current_snapshot.next}",
+    f"Checkpoint ID: {current_snapshot.config['configurable'].get('checkpoint_id', 'N/A')}",
+    "=" * 40,
+    "",
+]
+
+# Iterate through state values and append formatted sections
+for key, value in current_snapshot.values.items():
+    text_lines.append(f"[{key.upper()}]")
+    if isinstance(value, dict):
+        for sub_k, sub_v in value.items():
+            text_lines.append(f"  {sub_k}: {sub_v}")
+    else:
+        text_lines.append(f"  {value}")
+    text_lines.append("")
+
+formatted_text = "\n".join(text_lines)
+
+# 3. Save to a local text file
+output_path = Path("final_state.txt")
+output_path.write_text(formatted_text, encoding="utf-8")
+
+print(f"Final state text report saved to {output_path.resolve()}")
 
 # # Get the Latest State
 
@@ -43,3 +88,9 @@ final_state = graph.invoke(initial_state, config=config)
 
 # # Re-run execution starting from that historic point
 # new_result = graph.invoke(None, config=past_checkpoint_config)
+
+
+# # 3. Direct SQL Querying (Optional)
+# # If you want to inspect the raw database outside of LangGraph using SQLite CLI or a database viewer like DB Browser for SQLite:
+
+# sqlite3 checkpoints.sqlite "SELECT checkpoint_id, type, blob FROM checkpoints;"

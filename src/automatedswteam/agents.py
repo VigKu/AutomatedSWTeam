@@ -12,6 +12,8 @@ from .tools import (
     scaffold_workspace,
 )
 
+from .observability import track_agent
+
 logger = logging.getLogger(__name__)
 
 MODEL_NAME = "gpt-5.4-nano"
@@ -134,7 +136,7 @@ qa_llm = ChatOpenAI(model=MODEL_NAME, temperature=0).bind_tools(qa_tools)
 
 
 ### Define Agent Nodes as functions ###
-
+@track_agent("lead_engineer")
 def lead_engineer(state: AgentState) -> AgentState:
     """
     Lead Engineer Agent: Plans the application architecture and passes the requirements to the frontend, backend and QA agents.
@@ -187,7 +189,7 @@ Do not write application logic. Your job is architecture, contracts, and the fil
     logger.info(scaffold_msg)
     return state
 
-
+@track_agent("frontend_engineer")
 def frontend_engineer(state: AgentState) -> AgentState:
     """
     Frontend Engineer Agent: Works on the frontend development for the UI and UX.
@@ -235,7 +237,7 @@ def frontend_engineer(state: AgentState) -> AgentState:
     state["frontend_plan"] = _run_tool_loop(prompt, frontend_llm, frontend_tool_dict)
     return state
 
-
+@track_agent("backend_engineer")
 def backend_engineer(state: AgentState) -> AgentState:
     """
     Backend Engineer Agent: Works on the backend development including API endpoints, security, database schema and integration with frontend.
@@ -285,7 +287,7 @@ def backend_engineer(state: AgentState) -> AgentState:
     state["backend_plan"] = _run_tool_loop(prompt, backend_llm, backend_tool_dict)
     return state
 
-
+@track_agent("qa_engineer")
 def qa_engineer(state: AgentState) -> AgentState:
     """
     Works on the QA testing and provides feedback on the quality of the code based on test cases.
