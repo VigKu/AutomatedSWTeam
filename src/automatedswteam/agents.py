@@ -149,6 +149,7 @@ Plan a two-folder application:
 - backend/: API, data, auth, and server logic only. The backend agent may change only this folder.
 
 Also define shared contracts (routes, request/response bodies, auth) that both agents must follow.
+Write the requirements.txt in the workspace that is used in sandbox to download packages.
 
 Create a hierarchical, modular file tree (not one giant file per side). Each CodeNode must include:
 - path (always under frontend/ or backend/)
