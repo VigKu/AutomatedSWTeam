@@ -213,6 +213,8 @@ Every agent execution decorated with `@track_agent` outputs performance metadata
 
    ```
    pip install langgraph langchain-core langchain-openai pydantic
+   OR
+   uv sync
    
    ```
 
