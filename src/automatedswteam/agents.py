@@ -1,8 +1,9 @@
+import os
 from typing import List, TypedDict, Literal, Optional
 
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage, ToolMessage
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, SecretStr
 import logging
 
 from .tools import (
@@ -13,6 +14,12 @@ from .tools import (
 )
 
 from .observability import track_agent
+
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
+print("OpenAI Key Loaded:", bool(os.getenv("OPENAI_API_KEY")))
 
 logger = logging.getLogger(__name__)
 
@@ -126,13 +133,13 @@ def _run_tool_loop(prompt: str, llm_tools, tool_dict) -> str:
 # 1. Do not reuse llm_with_tools for lead “and just parse the text.” You lose the schema guarantee.
 # 2. Do not bind_tools([]) on the already-bound runnable to “turn tools off.” Use the base llm.
 # 3. Do not give lead the same file/shell tools. Lead only splits requirements and owns CODEMAP; tools belong to implementers.
-llm_base = ChatOpenAI(model=MODEL_NAME, temperature=0)
+llm_base = ChatOpenAI(model=MODEL_NAME, temperature=0, api_key=SecretStr(os.getenv("OPENAI_API_KEY")))
 frontend_tools, frontend_tool_dict = make_agent_tools("frontend")
 backend_tools, backend_tool_dict = make_agent_tools("backend")
 qa_tools, qa_tool_dict = make_agent_tools("qa")
-frontend_llm = ChatOpenAI(model=MODEL_NAME, temperature=0).bind_tools(frontend_tools)
-backend_llm = ChatOpenAI(model=MODEL_NAME, temperature=0).bind_tools(backend_tools)
-qa_llm = ChatOpenAI(model=MODEL_NAME, temperature=0).bind_tools(qa_tools)
+frontend_llm = ChatOpenAI(model=MODEL_NAME, temperature=0, api_key=SecretStr(os.getenv("OPENAI_API_KEY"))).bind_tools(frontend_tools)
+backend_llm = ChatOpenAI(model=MODEL_NAME, temperature=0, api_key=SecretStr(os.getenv("OPENAI_API_KEY"))).bind_tools(backend_tools)
+qa_llm = ChatOpenAI(model=MODEL_NAME, temperature=0, api_key=SecretStr(os.getenv("OPENAI_API_KEY"))).bind_tools(qa_tools)
 
 
 ### Define Agent Nodes as functions ###
