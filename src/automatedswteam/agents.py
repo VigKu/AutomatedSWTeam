@@ -13,7 +13,7 @@ from .tools import (
     scaffold_workspace,
 )
 
-from .observability import track_agent
+from .observability import track_agent, record_token_usage
 
 from dotenv import load_dotenv
 
@@ -105,16 +105,25 @@ def _content_to_str(content) -> str:
         return content
     return str(content)
 
+def _extract_and_record_tokens(response) -> None:
+    """Extract token usage from LangChain response and pass to observability tracker."""
+    if hasattr(response, "usage_metadata") and response.usage_metadata:
+        prompt_tokens = response.usage_metadata.get("input_tokens", 0)
+        completion_tokens = response.usage_metadata.get("output_tokens", 0)
+        total_tokens = response.usage_metadata.get("total_tokens", 0)
+        record_token_usage(prompt_tokens, completion_tokens, total_tokens)
 
 def _run_tool_loop(prompt: str, llm_tools, tool_dict) -> str:
     messages = [HumanMessage(content=prompt)]
     response = llm_tools.invoke(messages)
+    _extract_and_record_tokens(response)
     max_call = MAX_TOOL_CALL_NUM
 
     while getattr(response, "tool_calls", None) and max_call > 0:
         tool_msgs = handle_tool_calls(response.tool_calls, tool_dict)
         messages.extend([response, *tool_msgs])
         response = llm_tools.invoke(messages)
+        _extract_and_record_tokens(response)
         max_call -= 1
 
     if getattr(response, "tool_calls", None):
@@ -125,6 +134,7 @@ def _run_tool_loop(prompt: str, llm_tools, tool_dict) -> str:
             )
         )
         response = llm_base.invoke(messages)
+        _extract_and_record_tokens(response)
 
     return _content_to_str(response.content)
 
@@ -171,6 +181,9 @@ Requirements for frontend, backend, and QA must be numbered lists detailed enoug
 Do not write application logic. Your job is architecture, contracts, and the file index.
 """
     response = llm_base.with_structured_output(LeadPlan).invoke([HumanMessage(content=prompt)])
+    # Note: When using raw structured output runnables, record usage if metadata is available
+    if hasattr(response, "usage_metadata"):
+        _extract_and_record_tokens(response)
     frontend_tree = [
         CodeNode.model_validate(node) if not isinstance(node, CodeNode) else node
         for node in response.frontend_tree
@@ -341,7 +354,9 @@ def qa_engineer(state: AgentState) -> AgentState:
     - frontend_feedback / backend_feedback: concrete fix instructions for that engineer, including CODEMAP paths.
     """
     verdict = llm_base.with_structured_output(QAVerdict).invoke([HumanMessage(content=verdict_prompt)])
-
+    # Note: When using raw structured output runnables, record usage if metadata is available
+    if hasattr(verdict, "usage_metadata"):
+        _extract_and_record_tokens(verdict)
     next_agent = verdict.next_agent
     if verdict.passed:
         next_agent = "end"
