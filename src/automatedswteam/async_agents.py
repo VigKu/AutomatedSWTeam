@@ -166,14 +166,15 @@ async def lead_engineer_async(state: AgentState) -> AgentState:
     logger.info(msg)
     prompt = f"""You are the lead engineer. Review the user prompt: {state['user_prompt']}
 
-Plan a two-folder application:
-- frontend/: UI/UX only.
-- backend/: API, data, auth, and server logic only.
+                Plan a two-folder application and their requirements:
+                - frontend/: UI/UX only.
+                - backend/: API, data, auth, and server logic only.
 
-Define shared contracts (routes, request/response bodies, auth).
-Create a hierarchical, modular file tree for frontend and backend.
-Do not write application logic. Your job is architecture, contracts, and file index.
-"""
+                Define shared contracts (routes, request/response bodies, auth).
+                Define clear and concise requirements for frontend and backend agent respectively.
+                Create a hierarchical, modular file tree for frontend and backend.
+                Do not write application logic. Your job is architecture, contracts, file index and requirements.
+                """
     response = await llm_base.with_structured_output(LeadPlan).ainvoke([HumanMessage(content=prompt)])
     if hasattr(response, "usage_metadata"):
         _extract_and_record_tokens(response)
@@ -207,22 +208,22 @@ async def frontend_engineer_async(state: AgentState) -> AgentState:
     if is_sendback:
         verdict = state.get("qa_verdict") or {}
         prompt = f"""You are the frontend engineer fixing failed QA tests.
-Workspace: {workspace}
-Lead frontend requirements: {state['lead_plan']['frontend_req']}
-Contracts: {state['lead_plan'].get('contracts')}
-CODEMAP:\n{state.get('codemap')}
-QA feedback: {verdict.get('frontend_feedback') or state.get('qa_feedback')}
-{DOC_RULES}
-"""
+                    Workspace: {workspace}
+                    Lead frontend requirements: {state['lead_plan']['frontend_req']}
+                    Contracts: {state['lead_plan'].get('contracts')}
+                    CODEMAP:\n{state.get('codemap')}
+                    QA feedback: {verdict.get('frontend_feedback') or state.get('qa_feedback')}
+                    {DOC_RULES}
+                    """
     else:
         prompt = f"""You are the frontend engineer.
-Workspace: {workspace}
-Frontend requirements: {state['lead_plan']['frontend_req']}
-Shared contracts: {state['lead_plan'].get('contracts')}
-CODEMAP:\n{state.get('codemap')}
-{DOC_RULES}
-Create a numbered plan, then implement it.
-"""
+                    Workspace: {workspace}
+                    Frontend requirements: {state['lead_plan']['frontend_req']}
+                    Shared contracts: {state['lead_plan'].get('contracts')}
+                    CODEMAP:\n{state.get('codemap')}
+                    {DOC_RULES}
+                    Create a numbered plan, then implement it.
+                    """
     logger.info("\n-- [FRONTEND ENGINEER AGENT] Executing (Async). --")
     state["frontend_plan"] = await _run_tool_loop_async(prompt, frontend_llm, frontend_tool_dict)
     return state
@@ -244,13 +245,13 @@ QA feedback: {verdict.get('backend_feedback') or state.get('qa_feedback')}
 """
     else:
         prompt = f"""You are the backend engineer.
-Workspace: {workspace}
-Backend requirements: {state['lead_plan']['backend_req']}
-Shared contracts: {state['lead_plan'].get('contracts')}
-CODEMAP:\n{state.get('codemap')}
-{DOC_RULES}
-Create a numbered plan, then implement it.
-"""
+                    Workspace: {workspace}
+                    Backend requirements: {state['lead_plan']['backend_req']}
+                    Shared contracts: {state['lead_plan'].get('contracts')}
+                    CODEMAP:\n{state.get('codemap')}
+                    {DOC_RULES}
+                    Create a numbered plan, then implement it.
+                    """
     logger.info("\n-- [BACKEND ENGINEER AGENT] Executing (Async). --")
     state["backend_plan"] = await _run_tool_loop_async(prompt, backend_llm, backend_tool_dict)
     return state
@@ -260,21 +261,21 @@ Create a numbered plan, then implement it.
 async def qa_engineer_async(state: AgentState) -> AgentState:
     workspace = state.get("workspace_root") or str(get_workspace_root())
     prompt = f"""You are the QA engineer.
-Workspace: {workspace}
-QA requirements: {state['lead_plan']['qa_req']}
-Frontend plan: {state.get('frontend_plan')}
-Backend plan: {state.get('backend_plan')}
-{DOC_RULES}
-"""
+                Workspace: {workspace}
+                QA requirements: {state['lead_plan']['qa_req']}
+                Frontend plan: {state.get('frontend_plan')}
+                Backend plan: {state.get('backend_plan')}
+                {DOC_RULES}
+                """
     logger.info("\n-- [QA AGENT] Executing tests (Async). --")
     work_summary = await _run_tool_loop_async(prompt, qa_llm, qa_tool_dict)
     sendbacks_used = state.get("sendback_count", 0)
     
     verdict_prompt = f"""Produce a routing verdict from QA results.
-QA requirements: {state['lead_plan']['qa_req']}
-Work summary: {work_summary}
-Send-backs used: {sendbacks_used} of {MAX_SENDBACK}.
-"""
+                        QA requirements: {state['lead_plan']['qa_req']}
+                        Work summary: {work_summary}
+                        Send-backs used: {sendbacks_used} of {MAX_SENDBACK}.
+                        """
     verdict = await llm_base.with_structured_output(QAVerdict).ainvoke([HumanMessage(content=verdict_prompt)])
     if hasattr(verdict, "usage_metadata"):
         _extract_and_record_tokens(verdict)
