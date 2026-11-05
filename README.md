@@ -3,6 +3,8 @@ Team of SW agents that can build prototypes with a user prompt.
 
 An autonomous multi-agent software development system built with **LangGraph**, **LangChain**, and **OpenAI GPT-5.4-nano**. The system simulates a complete software engineering team—comprising a **Lead Engineer**, **Frontend Engineer**, **Backend Engineer**, and **QA Engineer**—to design, scaffold, implement, test, and refine full-stack applications in a sandboxed workspace.
 
+The system supports both synchronous and asynchronous workflows, feature sandboxing, automated tool loops, dynamic graph routing, and built-in token/performance observability tracking. The ccontent below are for synchronous workflows.
+
 ## 📋 Table of Contents
 
 1. [Architecture & Workflow](#architecture--workflow)
