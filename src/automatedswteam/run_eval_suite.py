@@ -8,7 +8,8 @@ sys.path.append(str(Path(__file__).parent))
 
 from graph import workflow
 from observability import save_observability_report
-from langgraph.checkpoint.sqlite import SqliteSaver
+# from langgraph.checkpoint.sqlite import SqliteSaver
+from langgraph.checkpoint.memory import MemorySaver
 
 EVAL_SCENARIOS = [
     {"id": "TEST-01", "prompt": "Build a full-stack todo app with React and FastAPI."},
@@ -24,44 +25,46 @@ def run_evaluation():
     if Path(db_path).exists():
         Path(db_path).unlink()
 
-    with SqliteSaver.from_conn_string(f"sqlite:///{db_path}") as checkpointer:
-        graph = workflow.compile(checkpointer=checkpointer)
+    # use in memory
+    memory = MemorySaver()
+    # Compile graph with in memory
+    graph = workflow.compile(checkpointer=memory)
+    
+    for case in EVAL_SCENARIOS:
+        print(f"\n[Running {case['id']}] Prompt: '{case['prompt']}'")
+        config = {"configurable": {"thread_id": f"eval-thread-{case['id']}"}}
+        initial_state = {
+            "user_prompt": case["prompt"],
+            "sendback_count": 0
+        }
         
-        for case in EVAL_SCENARIOS:
-            print(f"\n[Running {case['id']}] Prompt: '{case['prompt']}'")
-            config = {"configurable": {"thread_id": f"eval-thread-{case['id']}"}}
-            initial_state = {
-                "user_prompt": case["prompt"],
-                "sendback_count": 0
-            }
+        try:
+            # Execute complete LangGraph cycle
+            final_state = graph.invoke(initial_state, config=config)
             
-            try:
-                # Execute complete LangGraph cycle
-                final_state = graph.invoke(initial_state, config=config)
-                
-                # Fetch final snapshot details
-                snapshot = graph.get_state(config)
-                values = snapshot.values
-                verdict = values.get("qa_verdict", {})
-                
-                print(f"[{case['id']} Status]: Complete. Next Node: {snapshot.next}")
-                print(f"  - QA Passed: {verdict.get('passed', False)}")
-                print(f"  - Total Sendbacks Used: {values.get('sendback_count', 0)}")
-                
-                # Metric Assertion 1: Sandboxing Boundary Check
-                if "lead_plan" in values:
-                    for node in values["lead_plan"].get("frontend_tree", []):
-                        assert node["path"].startswith("frontend/"), f"Violation: Frontend path escape: {node['path']}"
-                    for node in values["lead_plan"].get("backend_tree", []):
-                        assert node["path"].startswith("backend/") or node["path"].startswith("contracts/"), f"Violation: Backend path escape: {node['path']}"
-                print("  - [METRIC] Sandbox Boundaries: PASSED")
-                
-                # Metric Assertion 2: Max Loop Breaks
-                assert values.get("sendback_count", 0) <= 3, f"Violation: Infinite routing loop detected!"
-                print("  - [METRIC] Infinite Loop Protection: PASSED")
+            # Fetch final snapshot details
+            snapshot = graph.get_state(config)
+            values = snapshot.values
+            verdict = values.get("qa_verdict", {})
+            
+            print(f"[{case['id']} Status]: Complete. Next Node: {snapshot.next}")
+            print(f"  - QA Passed: {verdict.get('passed', False)}")
+            print(f"  - Total Sendbacks Used: {values.get('sendback_count', 0)}")
+            
+            # Metric Assertion 1: Sandboxing Boundary Check
+            if "lead_plan" in values:
+                for node in values["lead_plan"].get("frontend_tree", []):
+                    assert node["path"].startswith("frontend/"), f"Violation: Frontend path escape: {node['path']}"
+                for node in values["lead_plan"].get("backend_tree", []):
+                    assert node["path"].startswith("backend/") or node["path"].startswith("contracts/"), f"Violation: Backend path escape: {node['path']}"
+            print("  - [METRIC] Sandbox Boundaries: PASSED")
+            
+            # Metric Assertion 2: Max Loop Breaks
+            assert values.get("sendback_count", 0) <= 3, f"Violation: Infinite routing loop detected!"
+            print("  - [METRIC] Infinite Loop Protection: PASSED")
 
-            except Exception as e:
-                print(f"[{case['id']} CRITICAL FAILURE]: {str(e)}")
+        except Exception as e:
+            print(f"[{case['id']} CRITICAL FAILURE]: {str(e)}")
 
     # Generate full metrics reports using the existing observability utility
     report_file = save_observability_report(report_dir="eval_reports")

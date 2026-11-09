@@ -1,4 +1,5 @@
-from langgraph.checkpoint.sqlite import SqliteSaver
+#from langgraph.checkpoint.sqlite import SqliteSaver
+from langgraph.checkpoint.memory import MemorySaver
 from .graph import workflow
 from .observability import save_observability_report
 
@@ -15,17 +16,17 @@ initial_state = {
 # # Run the graph
 # final_state = graph.invoke(initial_state, config=config)
 
-#1. Open SQLite checkpointer context
-with SqliteSaver.from_conn_string("sqlite:///checkpoints.sqlite") as checkpointer:
-    # Compile graph with active SQLite checkpointer
-    graph = workflow.compile(checkpointer=checkpointer)
+#1. Use in memory
+memory = MemorySaver()
+# Compile graph with in memory
+graph = workflow.compile(checkpointer=memory)
 
-    # Run the graph
-    final_state = graph.invoke(initial_state, config=config)
+# Run the graph
+final_state = graph.invoke(initial_state, config=config)
 
-    # Inspect state or resume from a checkpoint
-    current_snapshot = graph.get_state(config)
-    print("Current node next up:", current_snapshot.next)
+# Inspect state or resume from a checkpoint
+current_snapshot = graph.get_state(config)
+print("Current node next up:", current_snapshot.next)
 
 # Save observability metrics locally
 report_path = save_observability_report(report_dir="report")

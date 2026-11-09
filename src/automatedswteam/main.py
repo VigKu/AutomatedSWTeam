@@ -56,9 +56,10 @@ def run_sequential(prompt: str):
     """Orchestrates the synchronous sequential workflow compilation and invocation."""
     print("[ORCHESTRATOR] Initializing Synchronous Sequential Workflow Track...")
     try:
-        from langgraph.checkpoint.sqlite import SqliteSaver
-        from graph import workflow
-        from observability import save_observability_report
+        # from langgraph.checkpoint.sqlite import SqliteSaver --> no longer exists
+        from langgraph.checkpoint.memory import MemorySaver
+        from .graph import workflow
+        from .observability import save_observability_report
     except ImportError as err:
         print(f"ERROR: Failed to import synchronous workflow modules. {err}")
         sys.exit(1)
@@ -69,16 +70,17 @@ def run_sequential(prompt: str):
         "sendback_count": 0,
     }
 
-    db_path = "checkpoints.sqlite"
-    print(f"[ORCHESTRATOR] Binding persistent checkpointer to sqlite:///{db_path}")
+    # db_path = "checkpoints.sqlite"
+    print(f"[ORCHESTRATOR] Binding persistent checkpointer to in memory")
     
-    with SqliteSaver.from_conn_string(f"sqlite:///{db_path}") as checkpointer:
-        graph = workflow.compile(checkpointer=checkpointer)
-        print(f"[ORCHESTRATOR] Graph compiled successfully. Triggering pipeline execution...")
-        graph.invoke(initial_state, config=config)
-        
-        current_snapshot = graph.get_state(config)
-        print(f"[ORCHESTRATOR] Execution finished. Next Up node state: {current_snapshot.next}")
+    # Initialize a synchronous in-memory checkpointer
+    memory = MemorySaver()
+    graph = workflow.compile(checkpointer=memory)
+    print(f"[ORCHESTRATOR] Graph compiled successfully. Triggering pipeline execution...")
+    graph.invoke(initial_state, config=config)
+    
+    current_snapshot = graph.get_state(config)
+    print(f"[ORCHESTRATOR] Execution finished. Next Up node state: {current_snapshot.next}")
 
     report_path = save_observability_report(report_dir="report")
     print(f"[ORCHESTRATOR] Synchronous metrics analysis logged at: {report_path.resolve()}")
@@ -89,8 +91,8 @@ async def run_parallel_async(prompt: str):
     print("[ORCHESTRATOR] Initializing Asynchronous Parallel Workflow Track...")
     try:
         from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
-        from async_graph import workflow
-        from async_observability import save_observability_report
+        from .async_graph import workflow
+        from .async_observability import save_observability_report
     except ImportError as err:
         print(f"ERROR: Failed to import asynchronous parallel workflow modules. {err}")
         sys.exit(1)
@@ -150,7 +152,7 @@ def main():
         sys.exit(1)
 
     if args.mode == "sequential":
-        run_sequential(args.prompt)
+        asyncio.run(run_sequential(args.prompt))
     elif args.mode == "parallel":
         asyncio.run(run_parallel_async(args.prompt))
 
