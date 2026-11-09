@@ -7,7 +7,7 @@ Depends on: tools, observability
 
 import os
 import logging
-from typing import List, TypedDict, Literal, Optional
+from typing import List, TypedDict, Literal, Optional, Annotated, Any
 from dotenv import load_dotenv
 
 from langchain_openai import ChatOpenAI
@@ -59,20 +59,25 @@ class QAVerdict(BaseModel):
     backend_feedback: Optional[str] = None
     summary: str
 
+
+# Generic reducer strategy for parallel branches: keeps the latest non-empty update
+def take_last(left: Any, right: Any) -> Any:
+    return right if right is not None and right != "" else left
+
 ### Shared Agent State ###
 class AgentState(TypedDict):
-    user_prompt: str
-    lead_plan: dict
-    frontend_plan: str
-    backend_plan: str
-    qa_plan: str
-    qa_verdict: dict
-    qa_feedback: str
-    error_log: str
-    test_results: str
-    sendback_count: int
-    workspace_root: str
-    codemap: str
+    user_prompt: Annotated[str, take_last]
+    lead_plan: Annotated[dict, take_last]
+    frontend_plan: Annotated[str, take_last]
+    backend_plan: Annotated[str, take_last]
+    qa_plan: Annotated[str, take_last]
+    qa_verdict: Annotated[dict, take_last]
+    qa_feedback: Annotated[str, take_last]
+    error_log: Annotated[str, take_last]
+    test_results: Annotated[str, take_last]
+    sendback_count: Annotated[int, take_last]
+    workspace_root: Annotated[str, take_last]
+    codemap: Annotated[str, take_last]
 
 
 async def handle_tool_calls_async(tool_calls, tool_dict) -> list:
@@ -164,6 +169,7 @@ qa_llm = ChatOpenAI(model=MODEL_NAME, temperature=0, api_key=SecretStr(os.getenv
 async def lead_engineer_async(state: AgentState) -> AgentState:
     msg = "\n-- [LEAD ENGINEER AGENT] Analyzing user prompt and creating master plan (Async). --"
     logger.info(msg)
+    print(msg)
     prompt = f"""You are the lead engineer. Review the user prompt: {state['user_prompt']}
 
                 Plan a two-folder application and their requirements:
@@ -225,8 +231,10 @@ async def frontend_engineer_async(state: AgentState) -> AgentState:
                     Create a numbered plan, then implement it.
                     """
     logger.info("\n-- [FRONTEND ENGINEER AGENT] Executing (Async). --")
-    state["frontend_plan"] = await _run_tool_loop_async(prompt, frontend_llm, frontend_tool_dict)
-    return state
+    print("\n-- [FRONTEND ENGINEER AGENT] Executing (Async). --")
+    fplan = await _run_tool_loop_async(prompt, frontend_llm, frontend_tool_dict)
+    # Return ONLY the updated key for frontend
+    return {"frontend_plan": fplan} 
 
 
 @track_agent("backend_engineer")
@@ -253,8 +261,10 @@ QA feedback: {verdict.get('backend_feedback') or state.get('qa_feedback')}
                     Create a numbered plan, then implement it.
                     """
     logger.info("\n-- [BACKEND ENGINEER AGENT] Executing (Async). --")
-    state["backend_plan"] = await _run_tool_loop_async(prompt, backend_llm, backend_tool_dict)
-    return state
+    print("\n-- [BACKEND ENGINEER AGENT] Executing (Async). --")
+    bplan = await _run_tool_loop_async(prompt, backend_llm, backend_tool_dict)
+    # Return ONLY the updated key for backend
+    return {"backend_plan": bplan}
 
 
 @track_agent("qa_engineer")
@@ -268,9 +278,10 @@ async def qa_engineer_async(state: AgentState) -> AgentState:
                 {DOC_RULES}
                 """
     logger.info("\n-- [QA AGENT] Executing tests (Async). --")
+    print("\n-- [QA AGENT] Executing tests (Async). --")
     work_summary = await _run_tool_loop_async(prompt, qa_llm, qa_tool_dict)
     sendbacks_used = state.get("sendback_count", 0)
-    
+    print("\n-- [QA AGENT] Routing verdict (Async). --")
     verdict_prompt = f"""Produce a routing verdict from QA results.
                         QA requirements: {state['lead_plan']['qa_req']}
                         Work summary: {work_summary}

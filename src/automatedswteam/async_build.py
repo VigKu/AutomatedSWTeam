@@ -20,7 +20,8 @@ async def main():
     }
 
     # Open Async SQLite Checkpointer
-    async with AsyncSqliteSaver.from_conn_string("sqlite:///checkpoints.sqlite") as checkpointer:
+    # async with AsyncSqliteSaver.from_conn_string("sqlite:///checkpoints.sqlite") as checkpointer:
+    async with AsyncSqliteSaver.from_conn_string("checkpoints.sqlite") as checkpointer:
         graph = workflow.compile(checkpointer=checkpointer)
 
         # Execute Graph Asynchronously

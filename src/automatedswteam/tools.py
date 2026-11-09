@@ -198,7 +198,11 @@ def scaffold_workspace(
 
     for owner, nodes in (("frontend", payload["frontend"]), ("backend", payload["backend"])):
         for node in nodes:
-            rel = node["path"]
+            rel = node.get("path", "")
+
+            # Skip paths containing wildcards or illegal Windows filename characters
+            if any(char in rel for char in ['*', '?', '<', '>', ':', '"', '|']):
+                continue
             dest = root / Path(rel)
             dest.parent.mkdir(parents=True, exist_ok=True)
             if dest.exists() and dest.stat().st_size > 0:

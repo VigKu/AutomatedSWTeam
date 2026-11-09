@@ -106,7 +106,8 @@ async def run_parallel_async(prompt: str):
     db_path = "checkpoints_async.sqlite"
     print(f"[ORCHESTRATOR] Binding asynchronous persistent checkpointer to sqlite:///{db_path}")
 
-    async with AsyncSqliteSaver.from_conn_string(f"sqlite:///{db_path}") as checkpointer:
+    #async with AsyncSqliteSaver.from_conn_string(f"sqlite:///{db_path}") as checkpointer:
+    async with AsyncSqliteSaver.from_conn_string(db_path) as checkpointer:
         graph = workflow.compile(checkpointer=checkpointer)
         print(f"[ORCHESTRATOR] Async Graph compiled successfully. Initializing concurrent loops...")
         await graph.ainvoke(initial_state, config=config)
@@ -162,6 +163,6 @@ if __name__ == "__main__":
 
 ### CMD line @AutomatedSWTeam\src\automatedswteam :
 ## 1. async:
-# uv run python -m automatedswteam.main --mode sequential --prompt "Build a stocks trading application using React and python. Ensure to have users to create account with name and pick stocks APPLE, ADI, UCTT,MU, AMD, GOOGL, QCOM, META."
+# uv run python -m automatedswteam.main --mode parallel --prompt "Build a stocks trading application using python. Ensure to have users to create account with name and pick stocks APPLE, ADI, UCTT,MU, AMD, GOOGL, QCOM, META. Create a dummy api to call default prices from a text file and this is to be scalable in future and replaced with a live api."
 ## 2. sync:
 # uv run python -m automatedswteam.main --mode sequential --prompt "Build a simple chat interface using React."
