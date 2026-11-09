@@ -160,8 +160,8 @@ if __name__ == "__main__":
     main()
 
 
-### CMD line:
+### CMD line @AutomatedSWTeam\src\automatedswteam :
 ## 1. async:
-# uv run python main.py --mode parallel --prompt "Build a real-time analytics panel with FastHTML."
+# uv run python -m automatedswteam.main --mode sequential --prompt "Build a stocks trading application using React and python. Ensure to have users to create account with name and pick stocks APPLE, ADI, UCTT,MU, AMD, GOOGL, QCOM, META."
 ## 2. sync:
-# uv run python main.py --mode sequential --prompt "Build a simple chat interface using React."
+# uv run python -m automatedswteam.main --mode sequential --prompt "Build a simple chat interface using React."

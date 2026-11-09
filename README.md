@@ -257,9 +257,11 @@ initial_state = {
 You can run the main.py with prompt and mode as arguments in command line.
 1. async:
 ```bash
-uv run main.py --mode parallel --prompt "Build a real-time analytics panel with FastHTML."
+cd AutomatedSWTeam\src\automatedswteam
+uv run python -m automatedswteam.main --mode parallel --prompt "Build a real-time analytics panel with FastHTML."
 ```
 2. sync:
 ```bash
-uv run main.py --mode sequential --prompt "Build a simple chat interface using React."
+cd AutomatedSWTeam\src\automatedswteam
+uv run python -m automatedswteam.main --mode sequential --prompt "Build a simple chat interface using React."
 ```
