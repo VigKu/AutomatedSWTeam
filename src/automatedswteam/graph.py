@@ -1,6 +1,6 @@
 from .agents import lead_engineer, frontend_engineer, backend_engineer, qa_engineer, AgentState
 from langgraph.graph import START, END, StateGraph
-from langgraph.checkpoint.sqlite import SqliteSaver
+from langgraph.checkpoint.memory import MemorySaver
 
 
 def route_after_frontend(state: AgentState) -> str:
@@ -42,7 +42,7 @@ workflow.add_conditional_edges(
 
 # graph = workflow.compile(checkpointer=checkpointer)
 
-# Initialize SQLite checkpointer context manager or instance
-# Use from_conn_string to establish a persistent SQLite connection
-with SqliteSaver.from_conn_string("sqlite:///checkpoints.sqlite") as checkpointer:
-    graph = workflow.compile(checkpointer=checkpointer)
+# # Initialize SQLite checkpointer context manager or instance
+# # Use from_conn_string to establish a persistent SQLite connection
+# with SqliteSaver.from_conn_string("sqlite:///checkpoints.sqlite") as checkpointer:
+#     graph = workflow.compile(checkpointer=checkpointer)

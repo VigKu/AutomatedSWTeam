@@ -52,7 +52,7 @@ def verify_environment() -> bool:
     return True
 
 
-def run_sequential(prompt: str):
+async def run_sequential(prompt: str):
     """Orchestrates the synchronous sequential workflow compilation and invocation."""
     print("[ORCHESTRATOR] Initializing Synchronous Sequential Workflow Track...")
     try:
