@@ -104,6 +104,7 @@ async def handle_tool_calls_async(tool_calls, tool_dict) -> list:
             
         tool_msg = f"Tool executed. id: {tool_id}, name:{tool_name}, output:{tool_output}"
         logger.info(tool_msg)
+        print(tool_msg)
         tool_msgs.append(ToolMessage(content=tool_output, tool_call_id=tool_id))
     return tool_msgs
 

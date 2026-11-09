@@ -163,6 +163,6 @@ if __name__ == "__main__":
 
 ### CMD line @AutomatedSWTeam\src\automatedswteam :
 ## 1. async:
-# uv run python -m automatedswteam.main --mode parallel --prompt "Build a small stocks trading prototype using python. Ensure to have users to create account with name and pick stocks APPLE, ADI, UCTT,MU, AMD, GOOGL, QCOM, META. Create a dummy api to call default prices from a text file and this is to be scalable in future and replaced with a live api. Create a readme file in workspace folder on the usage. Limit the number of files created"
+# uv run python -m automatedswteam.main --mode parallel --prompt "Build a small stocks trading prototype using python and gradio. Ensure to have users to create account with name and pick stocks APPLE, ADI, UCTT,MU, AMD, GOOGL, QCOM, META. Create a dummy api to call default prices from a text file and this is to be scalable in future and replaced with a live api. Create a readme file in workspace folder on the usage. Limit the number of files created and test cases. Focus on making the protoype work."
 ## 2. sync:
 # uv run python -m automatedswteam.main --mode sequential --prompt "Build a simple chat interface using React."
