@@ -28,8 +28,8 @@ load_dotenv()
 logger = logging.getLogger(__name__)
 
 MODEL_NAME = "gpt-5.4-nano"
-MAX_TOOL_CALL_NUM = 15
-MAX_SENDBACK = 3
+MAX_TOOL_CALL_NUM = 25
+MAX_SENDBACK = 5
 
 DOC_RULES = """
 Code documentation rules (mandatory):
