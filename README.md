@@ -252,3 +252,14 @@ initial_state = {
     "sendback_count": 0,
 }
 ```
+
+### Launching via CMD line
+You can run the main.py with prompt and mode as arguments in command line.
+1. async:
+```bash
+uv run main.py --mode parallel --prompt "Build a real-time analytics panel with FastHTML."
+```
+2. sync:
+```bash
+uv run main.py --mode sequential --prompt "Build a simple chat interface using React."
+```
