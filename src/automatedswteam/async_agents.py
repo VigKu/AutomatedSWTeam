@@ -29,7 +29,7 @@ logger = logging.getLogger(__name__)
 
 MODEL_NAME = "gpt-5.4-nano"
 MAX_TOOL_CALL_NUM = 25
-MAX_SENDBACK = 5
+MAX_SENDBACK = 10
 
 DOC_RULES = """
 Code documentation rules (mandatory):
@@ -53,7 +53,7 @@ class LeadPlan(BaseModel):
 
 class QAVerdict(BaseModel):
     passed: bool
-    next_agent: Literal["end", "frontend", "backend"]
+    next_agent: Literal["end", "frontend", "backend", "both"]
     failed_tests: List[str]
     frontend_feedback: Optional[str] = None
     backend_feedback: Optional[str] = None
@@ -287,13 +287,21 @@ async def qa_engineer_async(state: AgentState) -> AgentState:
                         QA requirements: {state['lead_plan']['qa_req']}
                         Work summary: {work_summary}
                         Send-backs used: {sendbacks_used} of {MAX_SENDBACK}.
+
+                        Routing Rules:
+                        1. If all tests pass (passed=True), set next_agent to "end".
+                        2. If both backend and frontend have errors, set next_agent to "both".
+                        3. If only backend has errors, set next_agent to "backend".
+                        4. If only frontend has errors, set next_agent to "frontend".
                         """
     verdict = await llm_base.with_structured_output(QAVerdict).ainvoke([HumanMessage(content=verdict_prompt)])
     if hasattr(verdict, "usage_metadata"):
         _extract_and_record_tokens(verdict)
         
-    next_agent = verdict.next_agent if verdict.passed is False else "end"
-    if sendbacks_used >= MAX_SENDBACK or next_agent not in ("frontend", "backend"):
+    next_agent = verdict.next_agent if not verdict.passed else "end"
+    
+    # Enforce max sendback limit
+    if sendbacks_used >= MAX_SENDBACK:
         next_agent = "end"
     elif not verdict.passed:
         state["sendback_count"] = sendbacks_used + 1

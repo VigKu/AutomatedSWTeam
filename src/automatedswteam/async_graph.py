@@ -5,6 +5,7 @@ Owner: Lead Architect
 Depends on: async_agents
 """
 
+from typing import List
 from langgraph.graph import START, END, StateGraph
 from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 from .async_agents import (
@@ -15,12 +16,22 @@ from .async_agents import (
     AgentState,
 )
 
+def route_after_qa(state: AgentState) -> List[str] | str:
+    """
+    Conditional edge function for QA routing.
+    Returns a list of node names for parallel execution or a single node string.
+    """
+    verdict = state.get("qa_verdict", {})
+    next_agent = verdict.get("next_agent", "end")
 
-def route_after_qa(state: AgentState) -> str:
-    next_agent = (state.get("qa_verdict") or {}).get("next_agent", "end")
-    if next_agent in ("frontend", "backend"):
-        return next_agent
-    return "end"
+    if next_agent == "both":
+        return ["frontend", "backend"]  # Parallel execution matching node names
+    elif next_agent == "frontend":
+        return "frontend"
+    elif next_agent == "backend":
+        return "backend"
+    else:
+        return "end"
 
 
 workflow = StateGraph(AgentState)

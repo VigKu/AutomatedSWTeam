@@ -104,13 +104,19 @@ In this track, the lead engineer's plans are forked concurrently. Frontend and b
                               │                                     │
            ┌──────────────────┼─────────────────────┐               │
            │                  │                     │               │
-    (Passed / End)     (Fix Frontend)        (Fix Backend)          │
+    (Passed / End)     (Fix Frontend) and/or (Fix Backend)          │
            │                  │                     │               │
            ▼                  ▼                     ▼               │
         ┌─────┐     ┌────────────────────┐  ┌────────────────────┐  │
         │ END │     │ Frontend Fix Loop  │  │ Backend Fix Loop   │──┘
         └─────┘     └────────────────────┘  └────────────────────┘
 ```
+### 🔀 Asynchronous QA Routing Matrix
+The async joining gate dynamically computes the next graph transition through state evaluation:
+* **`end`**: All validations and test runs evaluate clean. Graph successfully terminates.
+* **`frontend`**: Only client modules break conventions or fail validations; fires an isolated frontend loop.
+* **`backend`**: Only server logic or schemas fail assertions; fires an isolated backend loop.
+* **`both`**: Structural validation breaks on both layers, or integrated contracts mismatch. Spawns an **asynchronous fan-out fork** running concurrent Frontend and Backend repair operations before re-joining at QA.
 
 ---
 
@@ -193,7 +199,7 @@ class AgentState(TypedDict):
     qa_feedback: str          # Actionable feedback for send-back loops
     error_log: str            # Collected errors during build
     test_results: str         # Captured output from execution of tests
-    sendback_count: int       # Send-back counter (Max: 3)
+    sendback_count: int       # Send-back counter (Max: 10)
     workspace_root: str       # Physical path to target project directory
     codemap: str              # Current Markdown contents of CODEMAP.md
 ```
