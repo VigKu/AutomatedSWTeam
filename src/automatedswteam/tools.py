@@ -300,6 +300,9 @@ def make_agent_tools(role: Role) -> tuple[list[BaseTool], dict[str, BaseTool]]:
 
     def lookup_code_index(query: str, folder: str = "") -> str:
         """Search CODEMAP for modular files. folder is frontend, backend, or empty for both. Call this before editing."""
+        # Normalize invalid model inputs like "all", "none", "root"
+        if folder not in ("frontend", "backend", ""):
+            folder = ""
         payload = load_codemap()
         needle = (query or "").strip().lower()
         folder_key = folder.strip().lower()
