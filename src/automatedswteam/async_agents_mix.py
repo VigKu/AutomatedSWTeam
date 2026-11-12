@@ -11,6 +11,7 @@ from typing import List, TypedDict, Literal, Optional, Annotated, Any
 from dotenv import load_dotenv
 
 from langchain_openai import ChatOpenAI
+from langchain_ollama import ChatOllama
 from langchain_core.messages import HumanMessage, ToolMessage
 from pydantic import BaseModel, Field, SecretStr
 
@@ -28,6 +29,9 @@ load_dotenv()
 logger = logging.getLogger(__name__)
 
 MODEL_NAME = "gpt-5.4-nano"
+OLLAMA_MODEL_NAME = "qwen3.5:4b" #"gemma4:e4b"
+OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+OLLAMA_BASE_URL_OPENAI = "http://localhost:11434/v1"
 MAX_TOOL_CALL_NUM = 25
 MAX_SENDBACK = 10
 
@@ -159,9 +163,14 @@ frontend_tools, frontend_tool_dict = make_async_agent_tools("frontend")
 backend_tools, backend_tool_dict = make_async_agent_tools("backend")
 qa_tools, qa_tool_dict = make_async_agent_tools("qa")
 
-frontend_llm = ChatOpenAI(model=MODEL_NAME, temperature=0, api_key=SecretStr(os.getenv("OPENAI_API_KEY"))).bind_tools(frontend_tools)
-backend_llm = ChatOpenAI(model=MODEL_NAME, temperature=0, api_key=SecretStr(os.getenv("OPENAI_API_KEY"))).bind_tools(backend_tools)
-qa_llm = ChatOpenAI(model=MODEL_NAME, temperature=0, api_key=SecretStr(os.getenv("OPENAI_API_KEY"))).bind_tools(qa_tools)
+# frontend_llm = ChatOpenAI(model=MODEL_NAME, temperature=0, api_key=SecretStr(os.getenv("OPENAI_API_KEY"))).bind_tools(frontend_tools)
+# backend_llm = ChatOpenAI(model=MODEL_NAME, temperature=0, api_key=SecretStr(os.getenv("OPENAI_API_KEY"))).bind_tools(backend_tools)
+# qa_llm = ChatOpenAI(model=MODEL_NAME, temperature=0, api_key=SecretStr(os.getenv("OPENAI_API_KEY"))).bind_tools(qa_tools)
+
+#ollama_llm = ChatOpenAI(model=OLLAMA_MODEL_NAME, temperature=0,base_url=OLLAMA_BASE_URL_OPENAI, max_tokens=4096, api_key=SecretStr("ollama"), extra_body={"options": {"num_ctx": 16384}})
+frontend_llm = ChatOpenAI(model=OLLAMA_MODEL_NAME, temperature=0, base_url=OLLAMA_BASE_URL_OPENAI, max_tokens=4096, api_key=SecretStr("ollama")).bind_tools(frontend_tools)
+backend_llm = ChatOpenAI(model=OLLAMA_MODEL_NAME, temperature=0, base_url=OLLAMA_BASE_URL_OPENAI, max_tokens=4096, api_key=SecretStr("ollama")).bind_tools(backend_tools)
+qa_llm = ChatOpenAI(model=OLLAMA_MODEL_NAME, temperature=0, base_url=OLLAMA_BASE_URL_OPENAI, max_tokens=4096, api_key=SecretStr("ollama")).bind_tools(qa_tools)
 
 
 ### Async Agent Nodes ###
@@ -171,18 +180,28 @@ async def lead_engineer_async(state: AgentState) -> AgentState:
     msg = "\n-- [LEAD ENGINEER AGENT] Analyzing user prompt and creating master plan (Async). --"
     logger.info(msg)
     print(msg)
+    # prompt = f"""You are the lead engineer. Review the user prompt: {state['user_prompt']}
+
+    #             Plan a two-folder application and their requirements:
+    #             - frontend/: UI/UX only.
+    #             - backend/: API, data, auth, and server logic only.
+
+    #             Define shared contracts (routes, request/response bodies, auth).
+    #             Define clear and concise requirements for frontend and backend agent respectively.
+    #             Create a hierarchical, modular file tree for frontend and backend.
+    #             Do not write application logic. Your job is architecture, contracts, file index and requirements.
+    #             """
     prompt = f"""You are the lead engineer. Review the user prompt: {state['user_prompt']}
 
-                Plan a two-folder application and their requirements:
-                - frontend/: UI/UX only.
-                - backend/: API, data, auth, and server logic only.
+            Plan a minimal two-folder application with as FEW files as possible:
+            - frontend/: ONLY `app.py` (Gradio UI + HTTP client calls) and `README.md`.
+            - backend/: ONLY `main.py` (FastAPI app + inline storage/auth/pricing logic), `prices.txt` (dummy prices file), and `README.md`.
 
-                Define shared contracts (routes, request/response bodies, auth).
-                Define clear and concise requirements for frontend and backend agent respectively.
-                Create a hierarchical, modular file tree for frontend and backend.
-                Do not write application logic. Your job is architecture, contracts, file index and requirements.
-                """
+            DO NOT create extra subfolders or split logic into tiny modular files (no routes/, pricing/, or utils/ subfolders). 
+            Keep all backend logic consolidated inside `backend/main.py`. Keep all frontend logic in `frontend/app.py`.
+            """
     response = await llm_base.with_structured_output(LeadPlan).ainvoke([HumanMessage(content=prompt)])
+    #response = await ollama_llm.with_structured_output(LeadPlan).ainvoke([HumanMessage(content=prompt)])
     if hasattr(response, "usage_metadata"):
         _extract_and_record_tokens(response)
 
@@ -229,7 +248,11 @@ async def frontend_engineer_async(state: AgentState) -> AgentState:
                     Shared contracts: {state['lead_plan'].get('contracts')}
                     CODEMAP:\n{state.get('codemap')}
                     {DOC_RULES}
-                    Create a numbered plan, then implement it.
+                    CRITICAL EXECUTION MANDATE:
+                    - You MUST invoke the `write_file` tool for EVERY required Python file under `backend/`.
+                    - Do NOT leave `# TODO: implement` placeholders in code.
+                    - Do NOT exit your turn until `write_file` has been executed with complete executable code.
+
                     """
     logger.info("\n-- [FRONTEND ENGINEER AGENT] Executing (Async). --")
     print("\n-- [FRONTEND ENGINEER AGENT] Executing (Async). --")
@@ -245,13 +268,13 @@ async def backend_engineer_async(state: AgentState) -> AgentState:
     if is_sendback:
         verdict = state.get("qa_verdict") or {}
         prompt = f"""You are the backend engineer fixing failed QA tests.
-Workspace: {workspace}
-Lead backend requirements: {state['lead_plan']['backend_req']}
-Contracts: {state['lead_plan'].get('contracts')}
-CODEMAP:\n{state.get('codemap')}
-QA feedback: {verdict.get('backend_feedback') or state.get('qa_feedback')}
-{DOC_RULES}
-"""
+                    Workspace: {workspace}
+                    Lead backend requirements: {state['lead_plan']['backend_req']}
+                    Contracts: {state['lead_plan'].get('contracts')}
+                    CODEMAP:\n{state.get('codemap')}
+                    QA feedback: {verdict.get('backend_feedback') or state.get('qa_feedback')}
+                    {DOC_RULES}
+                    """
     else:
         prompt = f"""You are the backend engineer.
                     Workspace: {workspace}
@@ -259,7 +282,12 @@ QA feedback: {verdict.get('backend_feedback') or state.get('qa_feedback')}
                     Shared contracts: {state['lead_plan'].get('contracts')}
                     CODEMAP:\n{state.get('codemap')}
                     {DOC_RULES}
-                    Create a numbered plan, then implement it.
+
+                    CRITICAL EXECUTION MANDATE:
+                    - You MUST invoke the `write_file` tool for EVERY required Python file under `backend/`.
+                    - Do NOT leave `# TODO: implement` placeholders in code.
+                    - Do NOT exit your turn until `write_file` has been executed with complete executable code.
+
                     """
     logger.info("\n-- [BACKEND ENGINEER AGENT] Executing (Async). --")
     print("\n-- [BACKEND ENGINEER AGENT] Executing (Async). --")
@@ -277,13 +305,18 @@ async def qa_engineer_async(state: AgentState) -> AgentState:
                 Frontend plan: {state.get('frontend_plan')}
                 Backend plan: {state.get('backend_plan')}
                 {DOC_RULES}
+
+                CRITICAL RULES FOR QA:
+                1. DO NOT call `write_file` on frontend/ or backend/ files. You do NOT write application code.
+                2. Inspect the implementation files using `read_file` or `list_dir`.
+                3. If files contain `# TODO: implement` or broken logic, record this as a test failure in your output summary.
                 """
     logger.info("\n-- [QA AGENT] Executing tests (Async). --")
     print("\n-- [QA AGENT] Executing tests (Async). --")
     work_summary = await _run_tool_loop_async(prompt, qa_llm, qa_tool_dict)
     sendbacks_used = state.get("sendback_count", 0)
     print("\n-- [QA AGENT] Routing verdict (Async). --")
-    verdict_prompt = f"""Produce a routing verdict from QA results.
+    verdict_prompt = f"""Produce a routing verdict from QA results in 100 words.
                         QA requirements: {state['lead_plan']['qa_req']}
                         Work summary: {work_summary}
                         Send-backs used: {sendbacks_used} of {MAX_SENDBACK}.
@@ -293,8 +326,9 @@ async def qa_engineer_async(state: AgentState) -> AgentState:
                         2. If both backend and frontend have errors, set next_agent to "both".
                         3. If only backend has errors, set next_agent to "backend".
                         4. If only frontend has errors, set next_agent to "frontend".
-                        """
+                       """
     verdict = await llm_base.with_structured_output(QAVerdict).ainvoke([HumanMessage(content=verdict_prompt)])
+    #verdict = await ollama_llm.with_structured_output(QAVerdict).ainvoke([HumanMessage(content=verdict_prompt)])
     if hasattr(verdict, "usage_metadata"):
         _extract_and_record_tokens(verdict)
         

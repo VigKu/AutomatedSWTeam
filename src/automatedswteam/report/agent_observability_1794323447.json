@@ -1,0 +1,422 @@
+{
+  "summary": {
+    "total_execution_time_sec": 826.6071,
+    "total_agent_calls": 25,
+    "total_tokens": {
+      "prompt_tokens": 2066246,
+      "completion_tokens": 70549,
+      "total_tokens": 2136795
+    },
+    "agent_breakdown": {
+      "lead_engineer": {
+        "calls": 1,
+        "total_time_sec": 18.3992,
+        "failures": 0,
+        "prompt_tokens": 0,
+        "completion_tokens": 0,
+        "total_tokens": 0
+      },
+      "frontend_engineer": {
+        "calls": 2,
+        "total_time_sec": 117.2348,
+        "failures": 0,
+        "prompt_tokens": 176566,
+        "completion_tokens": 13627,
+        "total_tokens": 190193
+      },
+      "backend_engineer": {
+        "calls": 11,
+        "total_time_sec": 516.746,
+        "failures": 0,
+        "prompt_tokens": 1661161,
+        "completion_tokens": 45254,
+        "total_tokens": 1706415
+      },
+      "qa_engineer": {
+        "calls": 11,
+        "total_time_sec": 174.2271,
+        "failures": 0,
+        "prompt_tokens": 228519,
+        "completion_tokens": 11668,
+        "total_tokens": 240187
+      }
+    }
+  },
+  "detailed_logs": [
+    {
+      "agent_name": "lead_engineer",
+      "timestamp": "2026-11-10 22:58:52",
+      "duration_seconds": 18.3992,
+      "status": "SUCCESS",
+      "error": null,
+      "sendback_count": 0,
+      "token_usage": {
+        "prompt_tokens": 0,
+        "completion_tokens": 0,
+        "total_tokens": 0
+      },
+      "qa_verdict": null,
+      "next_agent": null
+    },
+    {
+      "agent_name": "frontend_engineer",
+      "timestamp": "2026-11-10 22:59:10",
+      "duration_seconds": 74.1956,
+      "status": "SUCCESS",
+      "error": null,
+      "sendback_count": 0,
+      "token_usage": {
+        "prompt_tokens": 64523,
+        "completion_tokens": 8653,
+        "total_tokens": 73176
+      },
+      "qa_verdict": null,
+      "next_agent": null
+    },
+    {
+      "agent_name": "backend_engineer",
+      "timestamp": "2026-11-10 22:59:10",
+      "duration_seconds": 88.5419,
+      "status": "SUCCESS",
+      "error": null,
+      "sendback_count": 0,
+      "token_usage": {
+        "prompt_tokens": 88483,
+        "completion_tokens": 10686,
+        "total_tokens": 99169
+      },
+      "qa_verdict": null,
+      "next_agent": null
+    },
+    {
+      "agent_name": "qa_engineer",
+      "timestamp": "2026-11-10 23:00:39",
+      "duration_seconds": 10.9583,
+      "status": "SUCCESS",
+      "error": null,
+      "sendback_count": 1,
+      "token_usage": {
+        "prompt_tokens": 12103,
+        "completion_tokens": 782,
+        "total_tokens": 12885
+      },
+      "qa_verdict": false,
+      "next_agent": "backend"
+    },
+    {
+      "agent_name": "backend_engineer",
+      "timestamp": "2026-11-10 23:00:50",
+      "duration_seconds": 43.168,
+      "status": "SUCCESS",
+      "error": null,
+      "sendback_count": 1,
+      "token_usage": {
+        "prompt_tokens": 155582,
+        "completion_tokens": 3343,
+        "total_tokens": 158925
+      },
+      "qa_verdict": false,
+      "next_agent": "backend"
+    },
+    {
+      "agent_name": "qa_engineer",
+      "timestamp": "2026-11-10 23:01:33",
+      "duration_seconds": 12.992,
+      "status": "SUCCESS",
+      "error": null,
+      "sendback_count": 2,
+      "token_usage": {
+        "prompt_tokens": 10277,
+        "completion_tokens": 1023,
+        "total_tokens": 11300
+      },
+      "qa_verdict": false,
+      "next_agent": "both"
+    },
+    {
+      "agent_name": "backend_engineer",
+      "timestamp": "2026-11-10 23:01:46",
+      "duration_seconds": 36.8032,
+      "status": "SUCCESS",
+      "error": null,
+      "sendback_count": 2,
+      "token_usage": {
+        "prompt_tokens": 164226,
+        "completion_tokens": 2742,
+        "total_tokens": 166968
+      },
+      "qa_verdict": false,
+      "next_agent": "both"
+    },
+    {
+      "agent_name": "frontend_engineer",
+      "timestamp": "2026-11-10 23:01:46",
+      "duration_seconds": 43.0392,
+      "status": "SUCCESS",
+      "error": null,
+      "sendback_count": 2,
+      "token_usage": {
+        "prompt_tokens": 112043,
+        "completion_tokens": 4974,
+        "total_tokens": 117017
+      },
+      "qa_verdict": false,
+      "next_agent": "both"
+    },
+    {
+      "agent_name": "qa_engineer",
+      "timestamp": "2026-11-10 23:02:29",
+      "duration_seconds": 22.1846,
+      "status": "SUCCESS",
+      "error": null,
+      "sendback_count": 3,
+      "token_usage": {
+        "prompt_tokens": 25878,
+        "completion_tokens": 961,
+        "total_tokens": 26839
+      },
+      "qa_verdict": false,
+      "next_agent": "backend"
+    },
+    {
+      "agent_name": "backend_engineer",
+      "timestamp": "2026-11-10 23:02:51",
+      "duration_seconds": 18.9482,
+      "status": "SUCCESS",
+      "error": null,
+      "sendback_count": 3,
+      "token_usage": {
+        "prompt_tokens": 118309,
+        "completion_tokens": 829,
+        "total_tokens": 119138
+      },
+      "qa_verdict": false,
+      "next_agent": "backend"
+    },
+    {
+      "agent_name": "qa_engineer",
+      "timestamp": "2026-11-10 23:03:10",
+      "duration_seconds": 30.2515,
+      "status": "SUCCESS",
+      "error": null,
+      "sendback_count": 4,
+      "token_usage": {
+        "prompt_tokens": 102869,
+        "completion_tokens": 1107,
+        "total_tokens": 103976
+      },
+      "qa_verdict": false,
+      "next_agent": "backend"
+    },
+    {
+      "agent_name": "backend_engineer",
+      "timestamp": "2026-11-10 23:03:40",
+      "duration_seconds": 43.8846,
+      "status": "SUCCESS",
+      "error": null,
+      "sendback_count": 4,
+      "token_usage": {
+        "prompt_tokens": 183679,
+        "completion_tokens": 2948,
+        "total_tokens": 186627
+      },
+      "qa_verdict": false,
+      "next_agent": "backend"
+    },
+    {
+      "agent_name": "qa_engineer",
+      "timestamp": "2026-11-10 23:04:24",
+      "duration_seconds": 12.7921,
+      "status": "SUCCESS",
+      "error": null,
+      "sendback_count": 5,
+      "token_usage": {
+        "prompt_tokens": 7857,
+        "completion_tokens": 1024,
+        "total_tokens": 8881
+      },
+      "qa_verdict": false,
+      "next_agent": "backend"
+    },
+    {
+      "agent_name": "backend_engineer",
+      "timestamp": "2026-11-10 23:04:37",
+      "duration_seconds": 23.7571,
+      "status": "SUCCESS",
+      "error": null,
+      "sendback_count": 5,
+      "token_usage": {
+        "prompt_tokens": 56933,
+        "completion_tokens": 1804,
+        "total_tokens": 58737
+      },
+      "qa_verdict": false,
+      "next_agent": "backend"
+    },
+    {
+      "agent_name": "qa_engineer",
+      "timestamp": "2026-11-10 23:05:01",
+      "duration_seconds": 13.7356,
+      "status": "SUCCESS",
+      "error": null,
+      "sendback_count": 6,
+      "token_usage": {
+        "prompt_tokens": 10771,
+        "completion_tokens": 723,
+        "total_tokens": 11494
+      },
+      "qa_verdict": false,
+      "next_agent": "backend"
+    },
+    {
+      "agent_name": "backend_engineer",
+      "timestamp": "2026-11-10 23:05:15",
+      "duration_seconds": 30.3938,
+      "status": "SUCCESS",
+      "error": null,
+      "sendback_count": 6,
+      "token_usage": {
+        "prompt_tokens": 34669,
+        "completion_tokens": 3075,
+        "total_tokens": 37744
+      },
+      "qa_verdict": false,
+      "next_agent": "backend"
+    },
+    {
+      "agent_name": "qa_engineer",
+      "timestamp": "2026-11-10 23:05:45",
+      "duration_seconds": 14.5516,
+      "status": "SUCCESS",
+      "error": null,
+      "sendback_count": 7,
+      "token_usage": {
+        "prompt_tokens": 6215,
+        "completion_tokens": 1187,
+        "total_tokens": 7402
+      },
+      "qa_verdict": false,
+      "next_agent": "backend"
+    },
+    {
+      "agent_name": "backend_engineer",
+      "timestamp": "2026-11-10 23:05:59",
+      "duration_seconds": 19.7015,
+      "status": "SUCCESS",
+      "error": null,
+      "sendback_count": 7,
+      "token_usage": {
+        "prompt_tokens": 109093,
+        "completion_tokens": 924,
+        "total_tokens": 110017
+      },
+      "qa_verdict": false,
+      "next_agent": "backend"
+    },
+    {
+      "agent_name": "qa_engineer",
+      "timestamp": "2026-11-10 23:06:19",
+      "duration_seconds": 8.2438,
+      "status": "SUCCESS",
+      "error": null,
+      "sendback_count": 8,
+      "token_usage": {
+        "prompt_tokens": 3113,
+        "completion_tokens": 630,
+        "total_tokens": 3743
+      },
+      "qa_verdict": false,
+      "next_agent": "backend"
+    },
+    {
+      "agent_name": "backend_engineer",
+      "timestamp": "2026-11-10 23:06:27",
+      "duration_seconds": 30.2567,
+      "status": "SUCCESS",
+      "error": null,
+      "sendback_count": 8,
+      "token_usage": {
+        "prompt_tokens": 98653,
+        "completion_tokens": 2445,
+        "total_tokens": 101098
+      },
+      "qa_verdict": false,
+      "next_agent": "backend"
+    },
+    {
+      "agent_name": "qa_engineer",
+      "timestamp": "2026-11-10 23:06:58",
+      "duration_seconds": 12.3072,
+      "status": "SUCCESS",
+      "error": null,
+      "sendback_count": 9,
+      "token_usage": {
+        "prompt_tokens": 11872,
+        "completion_tokens": 570,
+        "total_tokens": 12442
+      },
+      "qa_verdict": false,
+      "next_agent": "backend"
+    },
+    {
+      "agent_name": "backend_engineer",
+      "timestamp": "2026-11-10 23:07:10",
+      "duration_seconds": 121.4893,
+      "status": "SUCCESS",
+      "error": null,
+      "sendback_count": 9,
+      "token_usage": {
+        "prompt_tokens": 372236,
+        "completion_tokens": 11407,
+        "total_tokens": 383643
+      },
+      "qa_verdict": false,
+      "next_agent": "backend"
+    },
+    {
+      "agent_name": "qa_engineer",
+      "timestamp": "2026-11-10 23:09:11",
+      "duration_seconds": 22.6338,
+      "status": "SUCCESS",
+      "error": null,
+      "sendback_count": 10,
+      "token_usage": {
+        "prompt_tokens": 28679,
+        "completion_tokens": 2488,
+        "total_tokens": 31167
+      },
+      "qa_verdict": false,
+      "next_agent": "backend"
+    },
+    {
+      "agent_name": "backend_engineer",
+      "timestamp": "2026-11-10 23:09:34",
+      "duration_seconds": 59.8017,
+      "status": "SUCCESS",
+      "error": null,
+      "sendback_count": 10,
+      "token_usage": {
+        "prompt_tokens": 279298,
+        "completion_tokens": 5051,
+        "total_tokens": 284349
+      },
+      "qa_verdict": false,
+      "next_agent": "backend"
+    },
+    {
+      "agent_name": "qa_engineer",
+      "timestamp": "2026-11-10 23:10:34",
+      "duration_seconds": 13.5766,
+      "status": "SUCCESS",
+      "error": null,
+      "sendback_count": 10,
+      "token_usage": {
+        "prompt_tokens": 8885,
+        "completion_tokens": 1173,
+        "total_tokens": 10058
+      },
+      "qa_verdict": false,
+      "next_agent": "end"
+    }
+  ]
+}
